@@ -212,15 +212,40 @@ gboolean callback_query_timeout(gpointer data) {
 }
 
 void put_in_qlist(const char* fname, int seq, gboolean is_ipv6, struct in6_addr *ipv6, struct in_addr *ipv4, u_short port){
+
 	struct Query *pt = (struct Query*)malloc(sizeof(struct Query));
+
 	memcpy(&pt->ipv4, ipv4, sizeof(struct in_addr));
 	memcpy(&pt->ipv6, ipv6, sizeof(struct in6_addr));
 	pt->is_ipv6=is_ipv6;
+
 	strncpy ( pt->name, fname, sizeof(pt->name));
 	pt->port1 = port;
 	pt->seq = seq;
 	pt->state = 1;
 	qList = g_list_append(qList,pt);
+}
+
+Query* get_from_qlist(const char* fname, int seq, gboolean is_ipv6){
+	Query* aux;
+
+	if(qList != NULL){
+		qList = g_list_first(qList);
+		while(qList!= NULL){
+			aux = (Query*) qList->data;
+			if(!strcmp(fname, aux->name) && seq == aux->seq && is_ipv6 == aux->is_ipv6)
+				return aux;
+			qList = g_list_next(qList);
+		}
+		return NULL;
+	} else return NULL;
+}
+
+void remove_from_qlist(const char* fname, int seq, gboolean is_ipv6){
+	Query* aux;
+	aux = get_from_qlist(fname, seq, is_ipv6);
+	qList = g_list_remove(qList, aux);
+	free(aux);
 }
 
 
@@ -324,6 +349,9 @@ void handle_Hit(char *buf, int buflen, struct in6_addr *ip, u_short port,
 
 		// Send the HIT message to the client
 		// You may get the client information from your Query list
+		Query* q;
+
+		q = get_from_qlist(fname, seq, !is_ipv6);
 
 		// If you did not do it, you may also get the client's information from the graphical table using
 		//GUI_get_Query_details(fname, seq, !is_ipv6, const char **str_ip, unsigned int *port, const char **hits);
