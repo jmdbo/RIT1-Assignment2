@@ -48,7 +48,7 @@ static char tmp_buf[8000];
 // Local functions
 gboolean callback_query_timeout(gpointer data);
 
-GList qList = NULL;
+GList *qList = NULL;
 
 
 
@@ -213,14 +213,14 @@ gboolean callback_query_timeout(gpointer data) {
 
 void put_in_qlist(const char* fname, int seq, gboolean is_ipv6, struct in6_addr *ipv6, struct in_addr *ipv4, u_short port){
 	struct Query *pt = (struct Query*)malloc(sizeof(struct Query));
-	pt->ipv4=ipv4;
-	pt->ipv6=ipv6;
+	memcpy(&pt->ipv4, ipv4, sizeof(struct in_addr));
+	memcpy(&pt->ipv6, ipv6, sizeof(struct in6_addr));
 	pt->is_ipv6=is_ipv6;
-	pt->name = fname;
-	pt->port = port;
+	strncpy ( pt->name, fname, sizeof(pt->name));
+	pt->port1 = port;
 	pt->seq = seq;
 	pt->state = 1;
-	g_list_insert(qList,pt);
+	qList = g_list_append(qList,pt);
 }
 
 
@@ -326,7 +326,7 @@ void handle_Hit(char *buf, int buflen, struct in6_addr *ip, u_short port,
 		// You may get the client information from your Query list
 
 		// If you did not do it, you may also get the client's information from the graphical table using
-		GUI_get_Query_details(fname, seq, !is_ipv6, const char **str_ip, unsigned int *port, const char **hits);
+		//GUI_get_Query_details(fname, seq, !is_ipv6, const char **str_ip, unsigned int *port, const char **hits);
 		//	   str_ip has the IP address and port has the port number.
 
 		// Send the HIT packet to the client

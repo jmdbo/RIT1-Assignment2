@@ -52,7 +52,8 @@ typedef struct Query {
 	gboolean is_ipv6;			// if TRUE, comes from IPv6, otherwise comes from IPv4.
 	struct in6_addr ipv6;
 	struct in_addr ipv4;
-	u_short port;
+	u_short port1;
+	u_short port2;
 	int state;
 	/*
 	 * 	...
@@ -60,6 +61,12 @@ typedef struct Query {
 	 * 	the Hit, the server socket, the accepted socket, the connection socket, buffers, etc.
 	 */
 } Query;
+
+typedef struct Socket {
+	int s;
+	GIOChannel *s_chan;
+	guint s_chan_id;
+};
 
 
 
