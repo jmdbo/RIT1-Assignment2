@@ -356,10 +356,9 @@ void handle_Hit(char *buf, int buflen, struct in6_addr *ip, u_short port,
 		// If you did not do it, you may also get the client's information from the graphical table using
 		//GUI_get_Query_details(fname, seq, !is_ipv6, const char **str_ip, unsigned int *port, const char **hits);
 		//	   str_ip has the IP address and port has the port number.
-
 		// Send the HIT packet to the client
 		//    you may use the function send_M6reply ...
-
+		send_M6reply(&q->ipv6,q->port1, buf, buflen);
 		// In order to avoid not seeing the Query in the graphical table, I recommend that you let the timer clear it.
 		// Wait for timeout to clear the GUI entry
 		// Otherwise, you can clear it here using:
