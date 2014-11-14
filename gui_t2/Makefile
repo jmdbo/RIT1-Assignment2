@@ -13,7 +13,7 @@ clean:
 
 
 $(APP_NAME): main.c $(APP_MODULES) gui.h sock.h callbacks.h 
-	gcc $(CFLAGS) -o $(APP_NAME) main.c $(APP_MODULES) $(GNOME_INCLUDES) -export-dynamic
+	gcc $(CFLAGS) -o $(APP_NAME) main.c $(APP_MODULES) $(GNOME_INCLUDES) -export-dynamic -lm
 
 sock.o: sock.c sock.h gui.h
 	gcc $(CFLAGS) -c $(GNOME_INCLUDES) sock.c -export-dynamic

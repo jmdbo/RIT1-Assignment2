@@ -49,6 +49,7 @@ static char tmp_buf[8000];
 gboolean callback_query_timeout(gpointer data);
 
 GList *qList = NULL;
+guint query_timer;
 
 
 
@@ -194,6 +195,17 @@ gboolean callback_query_timeout(gpointer data) {
 
 	g_print("Callback query_timeout\n");
 
+	if(q->state==1){
+		printf("Sending query...\n");
+		send_multicast(q->buf, q->buflen, !q->is_ipv6);
+		q->state = 2;
+		query_timer = g_timeout_add(10000,callback_query_timeout, q);
+
+	} else {
+		printf("Query timed out!!");
+		remove_from_qlist(q->name,q->seq,q->is_ipv6);
+		GUI_del_Query(q->name,q->seq,q->is_ipv6);
+	}
 	// The timer when off!
 	// Put here what you should do about it
 
@@ -211,12 +223,14 @@ gboolean callback_query_timeout(gpointer data) {
 	// return TRUE;	  // Keeps the timer running
 }
 
-void put_in_qlist(const char* fname, int seq, gboolean is_ipv6, struct in6_addr *ipv6, struct in_addr *ipv4, u_short port){
+Query* put_in_qlist(const char* fname, int seq, gboolean is_ipv6, struct in6_addr *ipv6, struct in_addr *ipv4, u_short port, char* buf, int buflen){
 
 	struct Query *pt = (struct Query*)malloc(sizeof(struct Query));
 
 	memcpy(&pt->ipv4, ipv4, sizeof(struct in_addr));
 	memcpy(&pt->ipv6, ipv6, sizeof(struct in6_addr));
+	memcpy(&pt->buf, buf, buflen);
+	pt->buflen = buflen;
 	pt->is_ipv6=is_ipv6;
 
 	strncpy ( pt->name, fname, sizeof(pt->name));
@@ -224,6 +238,7 @@ void put_in_qlist(const char* fname, int seq, gboolean is_ipv6, struct in6_addr 
 	pt->seq = seq;
 	pt->state = 1;
 	qList = g_list_append(qList,pt);
+	return pt;
 }
 
 Query* get_from_qlist(const char* fname, int seq, gboolean is_ipv6){
@@ -301,11 +316,14 @@ void handle_Query(char *buf, int buflen, gboolean is_ipv6,
 	GUI_add_Query(fname, seq, is_ipv6, strdup(tmp_ip), port);
 	// If it is new, create a new Query struct and store it in your list
 	// Store query information in list and start jitter Timer
-	put_in_qlist(fname, seq, is_ipv6, ipv6, ipv4, port);
+	Query* query = put_in_qlist(fname, seq, is_ipv6, ipv6, ipv4, port, buf, buflen);
+
 	// If you think that this is just too much for you, just use the graphical list -- No prob
 
 	// Start by forwarding here the Query message to the other domain (i.e. !is_ipv6) using:
-	send_multicast(buf, buflen, !is_ipv6);
+	long int jitter_time = (long) floor(1.0 * random() / RAND_MAX * QUERY_JITTER);
+
+	query_timer = g_timeout_add(jitter_time, callback_query_timeout, query);
 	//
 	// At the end, if you have time, start here a jitter timer, which will send the Query later!
 	//	This helps when there are more than one gateway connecting two multicast groups!
@@ -346,10 +364,10 @@ void handle_Hit(char *buf, int buflen, struct in6_addr *ip, u_short port,
 
 	if (!is_ipv6) {
 		// HIT received from an IPv4 server
-
+		Query* q;
 		// Send the HIT message to the client
 		// You may get the client information from your Query list
-		Query* q;
+
 
 		q = get_from_qlist(fname, seq, !is_ipv6);
 
@@ -369,9 +387,11 @@ void handle_Hit(char *buf, int buflen, struct in6_addr *ip, u_short port,
 	// HIT received from an IPv6 server
 	// In this case you need to create a new proxy server
 	// You should use fields in the Query struct to store all the information about the proxy
+	Query* q;
+	q = get_from_qlist(fname, seq, !is_ipv6);
 
 	// Create a new server socket using:
-	//		init_server_socket_tcp6 (complete it!)
+	init_server_socket_tcp6 (&q->chanTCP,&q->chanTCP_id,q);
 	// Store all the socket information in the Query structure
 
 	// Write the proxy information in the proxies list
@@ -382,6 +402,7 @@ void handle_Hit(char *buf, int buflen, struct in6_addr *ip, u_short port,
 	//		send_message4(&client_ipv4_address, client_port, HIT_buffer, HIT_buflen)
 
 	// Restart the timer, to wait for QUERY_TIMEOUT seconds for a connection
+
 }
 
 

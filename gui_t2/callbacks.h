@@ -55,6 +55,12 @@ typedef struct Query {
 	u_short port1;
 	u_short port2;
 	int state;
+	//Message transmission
+	char buf[MSG_BUFFER_SIZE];
+	int buflen;
+	//Proxy Data... To be continued
+	GIOChannel *chanTCP;
+	guint chanTCP_id;
 	/*
 	 * 	...
 	 * 	Put here everything you need to store about a Query, including the information about
@@ -81,7 +87,8 @@ extern WindowElements *main_window;
 /*******************************************************
  * Function to write the qlist
  ******************************************************/
-void put_in_qlist(const char* fname, int seq, gboolean is_ipv6, struct in6_addr *ipv6, struct in_addr *ipv4, u_short port);
+Query* put_in_qlist(const char* fname, int seq, gboolean is_ipv6, struct in6_addr *ipv6, struct in_addr *ipv4, u_short port, char* buf, int buflen);
+void remove_from_qlist(const char* fname, int seq, gboolean is_ipv6);
 
 /*******************************************************\
 |* Functions to control the state of the application   *|
