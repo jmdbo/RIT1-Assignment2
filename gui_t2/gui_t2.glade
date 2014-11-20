@@ -42,8 +42,7 @@
     <property name="can_focus">False</property>
     <property name="hexpand">True</property>
     <property name="vexpand">True</property>
-    <property name="type">popup</property>
-    <property name="title" translatable="yes">Gateway by 31559 &amp; 31818 &amp; 32522</property>
+    <property name="title" translatable="yes">gateway by 31559&amp;31818&amp;32522</property>
     <property name="gravity">north</property>
     <signal name="delete-event" handler="on_window1_delete_event" swapped="no"/>
     <child>
