@@ -228,7 +228,7 @@ gboolean handle_new_connection(int sock, void *ptr, struct sockaddr_in6 *cli_add
 	// Then, you start the two data callbacks for socket sock (connected to the client) and for the new socket
 	//    (connected to the server).
 	//		   for the client side you may use the function init_client_socket_tcp6 (complete it)
-	pt->cli_sock.s = init_client_socket_tcp6(TRUE, &pt->ipv6, pt->port_server, &pt->cli_sock.s_chan, &pt->cli_sock.s_chan_id, ptr);
+	pt->sock_cli.s = init_client_socket_tcp6(TRUE, &pt->ipv6, pt->port_server, &pt->sock_cli.s_chan, &pt->sock_cli.s_chan_id, ptr);
 
 
 	//         for the server side, you just need to setup the callback!

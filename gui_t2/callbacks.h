@@ -67,8 +67,8 @@ typedef struct Query {
 	int buflen;
 	//Proxy Data... To be continued
 	struct socket_struct sock_serv;
-	struct socket_struct cli_sock;
-	struct socket_struct com_sock;
+	struct socket_struct sock_cli;
+	struct socket_struct sock_com;
 
 	/*
 	 * 	...
