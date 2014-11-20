@@ -118,7 +118,7 @@ gboolean callback_UDPMulticast_data(GIOChannel *source, GIOCondition condition,
 		gpointer data);
 
 //Callback to receive data from Server IPv6
-gboolean callback_srvTCP_socket (GIOChannel *source, GIOCondition condition, gpointer data);
+gboolean callback_TCP_socketIPv6 (GIOChannel *source, GIOCondition condition, gpointer data);
 
 
 /******************************************\

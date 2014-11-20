@@ -145,23 +145,53 @@ callback_TCP_socket (GIOChannel *source, GIOCondition condition, gpointer data)
 
 /* Example callback function that handles reading/writing events from a TCP socket
  * It returns TRUE to keep the callback active, and FALSE to disable the callback */
-gboolean callback_cliTCP_socket (GIOChannel *source, GIOCondition condition, gpointer data)
+gboolean callback_TCP_socketIPv4 (GIOChannel *source, GIOCondition condition, gpointer data)
 {
 	static char write_buf[1024];
-//	char buf[MSG_BUFFER_SIZE];
+	char buf[MSG_BUFFER_SIZE];
 
-//	int s= g_io_channel_unix_get_fd(source); // Get the socket file descriptor
-//	int n;
+	int s= g_io_channel_unix_get_fd(source); // Get the socket file descriptor
+	int n, len;
 
-	/*
+
 	Query *pt= (Query *)data;	// Recover the pointer set when the callback was defined
-	...
-	*/
 
 	if (condition & G_IO_IN)
 	{
 		// Data available for reading at socket s
-		printf("G_IO_IN\n");
+		printf("G_IO_IN in IPv4\n");
+
+		if(pt->state==3){
+			n= read(s, &len, sizeof(len));
+			if(n==0){
+				printf("Connection TCP broke!\n");
+				return FALSE;
+			}else if(n<0){
+				printf("Reading error in TCP IPv4\n");
+				return FALSE;
+			}
+			printf("Got message with length %d in IPv4\n", len);
+			n=write(pt->sock_serv.s, &len, sizeof(len));
+			if(n<0){
+				printf("Write error file length IPv4\n");
+				return FALSE;
+			}
+			pt->fname_len = len;
+			pt->state=4;
+		}
+		if(pt->state==4){
+			printf("Reading filename...");
+			n= read(s, buf, pt->fname_len+1);
+			if(n==0){
+				printf("Connection srvTCP broke!");
+				return FALSE;
+			}else if(n<0){
+				printf("Reading error in srvTCP %d",n);
+				return FALSE;
+			}
+			n=write(pt->sock_serv.s, buf, pt->fname_len+1);
+			return TRUE;
+		}
 
 		// Use the following expression to read bulk data from the socket:
 		// 		n= read(s, buf, sizeof(buf));
@@ -221,8 +251,8 @@ gboolean handle_new_connection(int sock, void *ptr, struct sockaddr_in6 *cli_add
 
 
 	// Update the information about the client socket that connected
-	u_int port_Cli = get_portnumber(sock);
-	GUI_update_cli_details_Proxy(port_Cli, g_strdup(addr_ipv6(&cli_addr->sin6_addr)), ntohs(cli_addr->sin6_port));
+
+	GUI_update_cli_details_Proxy(get_portnumber(pt->sock_com.s), g_strdup(addr_ipv6(&cli_addr->sin6_addr)), ntohs(cli_addr->sin6_port));
 
 	// You should create a new TCP socket and connect it to the remote server, with the IP:port received in the HIT packet
 	// Then, you start the two data callbacks for socket sock (connected to the client) and for the new socket
@@ -232,8 +262,9 @@ gboolean handle_new_connection(int sock, void *ptr, struct sockaddr_in6 *cli_add
 
 
 	//         for the server side, you just need to setup the callback!
+	pt->sock_serv.s=sock;
 	if (!put_socket_in_mainloop(pt->sock_serv.s, ptr, &pt->sock_serv.s_chan_id, &pt->sock_serv.s_chan,
-				G_IO_IN, callback_cliTCP_socket)) {
+				G_IO_IN, callback_TCP_socketIPv4)) {
 			Log("Failed registration of TCPv6 server socket at Gnome\n");
 			close(pt->sock_serv.s);
 			return FALSE;
@@ -245,7 +276,7 @@ gboolean handle_new_connection(int sock, void *ptr, struct sockaddr_in6 *cli_add
 
 	// Update the information about the remote server
 	u_int port_Serv = get_portnumber(pt->sock_serv.s);
-	GUI_update_serv_details_Proxy(port_Serv,g_strdup(addr_ipv6(&pt->ipv6)), pt->port_server);
+	GUI_update_serv_details_Proxy(get_portnumber(pt->sock_com.s),g_strdup(addr_ipv6(&pt->ipv6)), port_Serv);
 
 	// Don't forget to configure your socket to maximize throughput
 	//	e.g. SO_SNDBUF, non-blocking, etc.
@@ -454,11 +485,16 @@ void handle_Hit(char *buf, int buflen, struct in6_addr *ip, u_short port,
 
 		q = get_from_qlist(fname, seq, !is_ipv6);
 
+		if(q==NULL){
+			return;
+		}
+
 		// If you did not do it, you may also get the client's information from the graphical table using
 		//GUI_get_Query_details(fname, seq, !is_ipv6, const char **str_ip, unsigned int *port, const char **hits);
 		//	   str_ip has the IP address and port has the port number.
 		// Send the HIT packet to the client
 		//    you may use the function send_M6reply ...
+		q->state=3;
 		send_M6reply(&q->ipv6,q->port_cli, buf, buflen);
 		// In order to avoid not seeing the Query in the graphical table, I recommend that you let the timer clear it.
 		// Wait for timeout to clear the GUI entry
@@ -472,11 +508,14 @@ void handle_Hit(char *buf, int buflen, struct in6_addr *ip, u_short port,
 	// You should use fields in the Query struct to store all the information about the proxy
 	Query* q;
 	q = get_from_qlist(fname, seq, !is_ipv6);
-
+	if(q==NULL){
+		return;
+	}
+	q->state=3;
 	// Create a new server socket using:
-	q->sock_serv.s = init_server_socket_tcp6 (&q->sock_serv.s_chan,&q->sock_serv.s_chan_id,q);
+	q->sock_com.s = init_server_socket_tcp6 (&q->sock_com.s_chan,&q->sock_com.s_chan_id,q);
 	// Store all the socket information in the Query structure
-	int proxy_server_socket_port = get_portnumber(q->sock_serv.s);
+	int proxy_server_socket_port = get_portnumber(q->sock_com.s);
 	// Write the proxy information in the proxies list
 	GUI_add_Proxy(fname, seq, proxy_server_socket_port);
 	// Prepare a new HIT message with the proxy information and send it to the client.

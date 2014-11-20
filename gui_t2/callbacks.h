@@ -69,6 +69,10 @@ typedef struct Query {
 	struct socket_struct sock_serv;
 	struct socket_struct sock_cli;
 	struct socket_struct sock_com;
+	//Length File Name
+	int fname_len;
+	//Length File
+	long long file_len;
 
 	/*
 	 * 	...
@@ -101,7 +105,7 @@ void handle_Query(char *buf, int buflen, gboolean is_ipv6, struct in6_addr *ipv6
 // Handle the reception of an Hit packet
 void handle_Hit(char *buf, int buflen, struct in6_addr *ip, u_short port, gboolean is_ipv6);
 //Callback to handle data on Client TCP Socket (aka Magic Stuff...)
-gboolean callback_cliTCP_socket (GIOChannel *source, GIOCondition condition, gpointer data);
+gboolean callback_TCP_socketIPv4 (GIOChannel *source, GIOCondition condition, gpointer data);
 // Handle the reception of a new connection on a server socket
 // Return TRUE if it should accept more connections; FALSE otherwise
 gboolean handle_new_connection(int sock, void *ptr, struct sockaddr_in6 *cli_addr);

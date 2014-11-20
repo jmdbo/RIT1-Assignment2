@@ -664,7 +664,7 @@ int init_client_socket_tcp6(gboolean connect_S, struct in6_addr *ip,
 	//Log("init_client_socket_tcp6 does not regist the callback yet\n");
 
 	if (!put_socket_in_mainloop(sockTCP, ptr, chanTCP_id, chanTCP,
-			G_IO_IN, callback_srvTCP_socket)) {
+			G_IO_IN, callback_TCP_socketIPv6)) {
 		Log("Failed registration of TCPv6 client socket at Gnome\n");
 		close(sockTCP);
 		return -1;
@@ -676,7 +676,7 @@ int init_client_socket_tcp6(gboolean connect_S, struct in6_addr *ip,
 
 /* Example callback function that handles reading/writing events from a TCP socket
  * It returns TRUE to keep the callback active, and FALSE to disable the callback */
-gboolean callback_srvTCP_socket (GIOChannel *source, GIOCondition condition, gpointer data)
+gboolean callback_TCP_socketIPv6 (GIOChannel *source, GIOCondition condition, gpointer data)
 {
 	static char write_buf[1024];
 	char buf[MSG_BUFFER_SIZE];
@@ -709,9 +709,9 @@ gboolean callback_srvTCP_socket (GIOChannel *source, GIOCondition condition, gpo
 			printf("Reading error in srvTCP");
 			return FALSE;
 		}
-		printf("Got message with length %d", len);
+		printf("Got message with length %d from IPv6", len);
 
-		n= read(s, buf, len+1);
+		n= read(s, buf, len);
 		if(n==0){
 			printf("Connection srvTCP broke!");
 			return FALSE;
