@@ -66,7 +66,7 @@ typedef struct Query {
 	char buf[MSG_BUFFER_SIZE];
 	int buflen;
 	//Proxy Data... To be continued
-	struct socket_struct sock;
+	struct socket_struct sock_serv;
 	struct socket_struct cli_sock;
 	struct socket_struct com_sock;
 
@@ -100,6 +100,8 @@ void remove_from_qlist(const char* fname, int seq, gboolean is_ipv6);
 void handle_Query(char *buf, int buflen, gboolean is_ipv6, struct in6_addr *ipv6, struct in_addr *ipv4, u_short port);
 // Handle the reception of an Hit packet
 void handle_Hit(char *buf, int buflen, struct in6_addr *ip, u_short port, gboolean is_ipv6);
+//Callback to handle data on Client TCP Socket (aka Magic Stuff...)
+gboolean callback_cliTCP_socket (GIOChannel *source, GIOCondition condition, gpointer data);
 // Handle the reception of a new connection on a server socket
 // Return TRUE if it should accept more connections; FALSE otherwise
 gboolean handle_new_connection(int sock, void *ptr, struct sockaddr_in6 *cli_addr);

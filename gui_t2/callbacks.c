@@ -143,6 +143,73 @@ callback_TCP_socket (GIOChannel *source, GIOCondition condition, gpointer data)
 	}
 }
 
+/* Example callback function that handles reading/writing events from a TCP socket
+ * It returns TRUE to keep the callback active, and FALSE to disable the callback */
+gboolean callback_cliTCP_socket (GIOChannel *source, GIOCondition condition, gpointer data)
+{
+	static char write_buf[1024];
+//	char buf[MSG_BUFFER_SIZE];
+
+//	int s= g_io_channel_unix_get_fd(source); // Get the socket file descriptor
+//	int n;
+
+	/*
+	Query *pt= (Query *)data;	// Recover the pointer set when the callback was defined
+	...
+	*/
+
+	if (condition & G_IO_IN)
+	{
+		// Data available for reading at socket s
+		printf("G_IO_IN\n");
+
+		// Use the following expression to read bulk data from the socket:
+		// 		n= read(s, buf, sizeof(buf));
+		// For a header field (int seq), you should use:
+		// 		n= read(s, &seq, sizeof(seq));
+		// Do not forget to test the value returned (n):
+		//	- n==0  -  EOF (connection broke)
+		//	- n<0   -  reading error in socket (test (errno==EWOULDBLOCK) if it is in non-blocking mode
+		//
+		// During a write operation with
+		//		n= write(s, buf, m);
+		//  it may return n != m when it is in the non-blocking mode!
+		//  If n==-1 and (errno==EWOULDBLOCK), or if (n>0) means that the TCP's output buffer if full.
+		//      You should enable the G_IO_OUT event in the main loop using the function
+		//	set_socket_callback_condition_in_mainloop, and wait before continuing sending data.
+		//  Store the pending data not sent in a buffer in the struct Query, so you can resend it again latter
+		//  when the event G_IO_OUT is received
+		//
+		// A socket sock can be set to non blocking mode using:
+		//		fcntl(sock,F_SETFL,O_NONBLOCK);
+
+		return TRUE;	// If there is more data coming, otherwise return FALSE;
+
+	} else if (condition & G_IO_OUT) {
+		// Space available for reading at socket s
+		printf("G_IO_OUT\n");
+
+		// This event should only be used when a write/send operation previously returned -1  with (errno==EWOULDBLOCK),
+		//     or a number of bytes below the number of bytes written. This means that the TCP's output buffer is full!
+		//
+		//	When the remaining bytes are written, do not forget to remove the G_IO_OUT event from the mainloop,
+		//		using the function set_socket_callback_condition_in_mainloop
+
+		return TRUE;  // If there is more data coming, otherwise return FALSE;
+	} else if ((condition & G_IO_NVAL) || (condition & G_IO_ERR)) {
+		printf("G_IO_NVAL or G_IO_ERR\n");
+		sprintf(write_buf, "G_IO_NVAL or G_IO_ERR - socket error %d\n", condition);
+		Log(write_buf);
+		// The query is broke - remove it
+		return FALSE;	// Removes socket's callback from main cycle
+	}
+	else
+	{
+		assert (0);		// Must never reach this line - aborts application with a core dump
+		return FALSE;	// Removes socket's callback from main cycle
+	}
+}
+
 
 // Handle the reception of a new connection on a server socket
 // Return TRUE if it should accept more connections; FALSE otherwise
@@ -162,15 +229,23 @@ gboolean handle_new_connection(int sock, void *ptr, struct sockaddr_in6 *cli_add
 	//    (connected to the server).
 	//		   for the client side you may use the function init_client_socket_tcp6 (complete it)
 	pt->cli_sock.s = init_client_socket_tcp6(TRUE, &pt->ipv6, pt->port_server, &pt->cli_sock.s_chan, &pt->cli_sock.s_chan_id, ptr);
+
+
 	//         for the server side, you just need to setup the callback!
+	if (!put_socket_in_mainloop(pt->sock_serv.s, ptr, &pt->sock_serv.s_chan_id, &pt->sock_serv.s_chan,
+				G_IO_IN, callback_cliTCP_socket)) {
+			Log("Failed registration of TCPv6 server socket at Gnome\n");
+			close(pt->sock_serv.s);
+			return FALSE;
+	}
 
 	// Use the callback_TCP_socket function above as a model for the two callbacks you need to implement and adapt it
 	//	   to run as client or as server; read carefully the comments within the function.
 
 
 	// Update the information about the remote server
-	// 		GUI_update_serv_details_Proxy(port_SS / *put here the server socket port number* /,
-	//			g_strdup(server_ipv6_str), server_port);
+	u_int port_Serv = get_portnumber(pt->sock_serv.s);
+	GUI_update_serv_details_Proxy(port_Serv,g_strdup(addr_ipv6(&pt->ipv6)), pt->port_server);
 
 	// Don't forget to configure your socket to maximize throughput
 	//	e.g. SO_SNDBUF, non-blocking, etc.
@@ -368,7 +443,7 @@ void handle_Hit(char *buf, int buflen, struct in6_addr *ip, u_short port,
 	sprintf(tmp_buf, "%s-%hd", addr_ipv6(ip), sTCP_port);
 	GUI_add_hit_to_Query(fname, seq, !is_ipv6, tmp_buf);
 
-	Log("Handle_Hit not implemented yet -- but being implemented\n");
+	//Log("Handle_Hit not implemented yet -- but being implemented\n");
 
 	if (!is_ipv6) {
 		// HIT received from an IPv4 server
@@ -399,9 +474,9 @@ void handle_Hit(char *buf, int buflen, struct in6_addr *ip, u_short port,
 	q = get_from_qlist(fname, seq, !is_ipv6);
 
 	// Create a new server socket using:
-	q->sock.s = init_server_socket_tcp6 (&q->sock.s_chan,&q->sock.s_chan_id,q);
+	q->sock_serv.s = init_server_socket_tcp6 (&q->sock_serv.s_chan,&q->sock_serv.s_chan_id,q);
 	// Store all the socket information in the Query structure
-	int proxy_server_socket_port = get_portnumber(q->sock.s);
+	int proxy_server_socket_port = get_portnumber(q->sock_serv.s);
 	// Write the proxy information in the proxies list
 	GUI_add_Proxy(fname, seq, proxy_server_socket_port);
 	// Prepare a new HIT message with the proxy information and send it to the client.

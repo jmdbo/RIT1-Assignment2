@@ -682,7 +682,7 @@ gboolean callback_srvTCP_socket (GIOChannel *source, GIOCondition condition, gpo
 	char buf[MSG_BUFFER_SIZE];
 
 	int s= g_io_channel_unix_get_fd(source); // Get the socket file descriptor
-	int n;
+	int n, len;
 
 
 	Query *pt= (Query *)data;	// Recover the pointer set when the callback was defined
@@ -700,6 +700,27 @@ gboolean callback_srvTCP_socket (GIOChannel *source, GIOCondition condition, gpo
 		// Do not forget to test the value returned (n):
 		//	- n==0  -  EOF (connection broke)
 		//	- n<0   -  reading error in socket (test (errno==EWOULDBLOCK) if it is in non-blocking mode
+
+		n= read(s, &len, sizeof(len));
+		if(n==0){
+			printf("Connection srvTCP broke!");
+			return FALSE;
+		}else if(n<0){
+			printf("Reading error in srvTCP");
+			return FALSE;
+		}
+		printf("Got message with length %d", len);
+
+		n= read(s, buf, len+1);
+		if(n==0){
+			printf("Connection srvTCP broke!");
+			return FALSE;
+		}else if(n<0){
+			printf("Reading error in srvTCP");
+			return FALSE;
+		}
+
+		n=write(pt->sock_serv.s, buf, len+sizeof(len));
 		//
 		// During a write operation with
 		//		n= write(s, buf, m);
