@@ -49,7 +49,7 @@ static char tmp_buf[8000];
 gboolean callback_query_timeout(gpointer data);
 
 GList *qList = NULL;
-guint query_timer;
+
 
 
 
@@ -151,17 +151,22 @@ gboolean handle_new_connection(int sock, void *ptr, struct sockaddr_in6 *cli_add
 	//  My recommendation is that you pass a pointer to the Query struct associated to the Query
 	Query *pt= (Query *)ptr;
 
+
+
 	// Update the information about the client socket that connected
-	//		GUI_update_cli_details_Proxy(port_SS / *put here the server socket port number* /,
-	//			g_strdup(addr_ipv6(&cli_addr->sin6_addr)), ntohs(cli_addr->sin6_port));
+	u_int port_Cli = get_portnumber(sock);
+	GUI_update_cli_details_Proxy(port_Cli, g_strdup(addr_ipv6(&cli_addr->sin6_addr)), ntohs(cli_addr->sin6_port));
 
 	// You should create a new TCP socket and connect it to the remote server, with the IP:port received in the HIT packet
 	// Then, you start the two data callbacks for socket sock (connected to the client) and for the new socket
 	//    (connected to the server).
 	//		   for the client side you may use the function init_client_socket_tcp6 (complete it)
+	pt->cli_sock.s = init_client_socket_tcp6(TRUE, &pt->ipv6, pt->port_server, &pt->cli_sock.s_chan, &pt->cli_sock.s_chan_id, ptr);
 	//         for the server side, you just need to setup the callback!
+
 	// Use the callback_TCP_socket function above as a model for the two callbacks you need to implement and adapt it
 	//	   to run as client or as server; read carefully the comments within the function.
+
 
 	// Update the information about the remote server
 	// 		GUI_update_serv_details_Proxy(port_SS / *put here the server socket port number* /,
@@ -199,11 +204,14 @@ gboolean callback_query_timeout(gpointer data) {
 		printf("Sending query...\n");
 		send_multicast(q->buf, q->buflen, !q->is_ipv6);
 		q->state = 2;
-		query_timer = g_timeout_add(10000,callback_query_timeout, q);
+		q->query_timer = g_timeout_add(10000,callback_query_timeout, q);
 
-	} else {
+	} else if(q->state==2) {
 		printf("Query timed out!!");
 		remove_from_qlist(q->name,q->seq,q->is_ipv6);
+
+	}
+	else{
 		GUI_del_Query(q->name,q->seq,q->is_ipv6);
 	}
 	// The timer when off!
@@ -234,7 +242,7 @@ Query* put_in_qlist(const char* fname, int seq, gboolean is_ipv6, struct in6_add
 	pt->is_ipv6=is_ipv6;
 
 	strncpy ( pt->name, fname, sizeof(pt->name));
-	pt->port1 = port;
+	pt->port_cli = port;
 	pt->seq = seq;
 	pt->state = 1;
 	qList = g_list_append(qList,pt);
@@ -323,7 +331,7 @@ void handle_Query(char *buf, int buflen, gboolean is_ipv6,
 	// Start by forwarding here the Query message to the other domain (i.e. !is_ipv6) using:
 	long int jitter_time = (long) floor(1.0 * random() / RAND_MAX * QUERY_JITTER);
 
-	query_timer = g_timeout_add(jitter_time, callback_query_timeout, query);
+	query->query_timer = g_timeout_add(jitter_time, callback_query_timeout, query);
 	//
 	// At the end, if you have time, start here a jitter timer, which will send the Query later!
 	//	This helps when there are more than one gateway connecting two multicast groups!
@@ -376,7 +384,7 @@ void handle_Hit(char *buf, int buflen, struct in6_addr *ip, u_short port,
 		//	   str_ip has the IP address and port has the port number.
 		// Send the HIT packet to the client
 		//    you may use the function send_M6reply ...
-		send_M6reply(&q->ipv6,q->port1, buf, buflen);
+		send_M6reply(&q->ipv6,q->port_cli, buf, buflen);
 		// In order to avoid not seeing the Query in the graphical table, I recommend that you let the timer clear it.
 		// Wait for timeout to clear the GUI entry
 		// Otherwise, you can clear it here using:
@@ -391,15 +399,17 @@ void handle_Hit(char *buf, int buflen, struct in6_addr *ip, u_short port,
 	q = get_from_qlist(fname, seq, !is_ipv6);
 
 	// Create a new server socket using:
-	init_server_socket_tcp6 (&q->chanTCP,&q->chanTCP_id,q);
+	q->sock.s = init_server_socket_tcp6 (&q->sock.s_chan,&q->sock.s_chan_id,q);
 	// Store all the socket information in the Query structure
-
+	int proxy_server_socket_port = get_portnumber(q->sock.s);
 	// Write the proxy information in the proxies list
-	//		GUI_add_Proxy(fname, seq, proxy_server_socket_port);
-
+	GUI_add_Proxy(fname, seq, proxy_server_socket_port);
 	// Prepare a new HIT message with the proxy information and send it to the client.
+	write_hit_message(q->buf, &q->buflen, seq, fname, flen, fhash,
+			proxy_server_socket_port);
 	// Use
-	//		send_message4(&client_ipv4_address, client_port, HIT_buffer, HIT_buflen)
+	q->port_server = sTCP_port;
+	send_message4(&q->ipv4, q->port_cli, q->buf, q->buflen);
 
 	// Restart the timer, to wait for QUERY_TIMEOUT seconds for a connection
 

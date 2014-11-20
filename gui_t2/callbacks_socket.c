@@ -645,22 +645,101 @@ int init_client_socket_tcp6(gboolean connect_S, struct in6_addr *ip,
 
 	if (connect_S) {
 		// Connect to remote host
-		Log("init_client_socket_tcp6 connect option not implmented yet\n");
+		server.sin6_family = AF_INET6;
+		server.sin6_flowinfo = 0;
+		server.sin6_port = htons (port);
+		bcopy (ip, &server.sin6_addr, sizeof(struct in6_addr));
+		if (connect (sockTCP, (struct sockaddr *) &server, sizeof (struct sockaddr_in6)) < 0)
+		{
+		      Log("connecting stream socket");
+		      exit (1);
+		}
+		//Log("init_client_socket_tcp6 connect option not implmented yet\n");
 		// ...
 		// Read the tcpcli example or the clitcpv6.c file in demos_s_gnome
+		return sockTCP;
 	}
 
 	// Regist the TCP socket in Gtk+ main loop
-	Log("init_client_socket_tcp6 does not regist the callback yet\n");
-	/*
+	//Log("init_client_socket_tcp6 does not regist the callback yet\n");
+
 	if (!put_socket_in_mainloop(sockTCP, ptr, chanTCP_id, chanTCP,
 			G_IO_IN, callback_srvTCP_socket)) {
 		Log("Failed registration of TCPv6 client socket at Gnome\n");
 		close(sockTCP);
 		return -1;
-	}*/
+	}
+
 	return sockTCP;
 }
+
+
+/* Example callback function that handles reading/writing events from a TCP socket
+ * It returns TRUE to keep the callback active, and FALSE to disable the callback */
+gboolean callback_srvTCP_socket (GIOChannel *source, GIOCondition condition, gpointer data)
+{
+	static char write_buf[1024];
+	char buf[MSG_BUFFER_SIZE];
+
+	int s= g_io_channel_unix_get_fd(source); // Get the socket file descriptor
+	int n;
+
+
+	Query *pt= (Query *)data;	// Recover the pointer set when the callback was defined
+
+
+	if (condition & G_IO_IN)
+	{
+		// Data available for reading at socket s
+		printf("G_IO_IN\n");
+
+		// Use the following expression to read bulk data from the socket:
+		//      n= read(s, buf, sizeof(buf));
+		// For a header field (int seq), you should use:
+		// 		n= read(s, &seq, sizeof(seq));
+		// Do not forget to test the value returned (n):
+		//	- n==0  -  EOF (connection broke)
+		//	- n<0   -  reading error in socket (test (errno==EWOULDBLOCK) if it is in non-blocking mode
+		//
+		// During a write operation with
+		//		n= write(s, buf, m);
+		//  it may return n != m when it is in the non-blocking mode!
+		//  If n==-1 and (errno==EWOULDBLOCK), or if (n>0) means that the TCP's output buffer if full.
+		//      You should enable the G_IO_OUT event in the main loop using the function
+		//	set_socket_callback_condition_in_mainloop, and wait before continuing sending data.
+		//  Store the pending data not sent in a buffer in the struct Query, so you can resend it again latter
+		//  when the event G_IO_OUT is received
+		//
+		// A socket sock can be set to non blocking mode using:
+		//		fcntl(sock,F_SETFL,O_NONBLOCK);
+
+		return TRUE;	// If there is more data coming, otherwise return FALSE;
+
+	} else if (condition & G_IO_OUT) {
+		// Space available for reading at socket s
+		printf("G_IO_OUT\n");
+
+		// This event should only be used when a write/send operation previously returned -1  with (errno==EWOULDBLOCK),
+		//     or a number of bytes below the number of bytes written. This means that the TCP's output buffer is full!
+		//
+		//	When the remaining bytes are written, do not forget to remove the G_IO_OUT event from the mainloop,
+		//		using the function set_socket_callback_condition_in_mainloop
+
+		return TRUE;  // If there is more data coming, otherwise return FALSE;
+	} else if ((condition & G_IO_NVAL) || (condition & G_IO_ERR)) {
+		printf("G_IO_NVAL or G_IO_ERR\n");
+		sprintf(write_buf, "G_IO_NVAL or G_IO_ERR - socket error %d\n", condition);
+		Log(write_buf);
+		// The query is broke - remove it
+		return FALSE;	// Removes socket's callback from main cycle
+	}
+	else
+	{
+		assert (0);		// Must never reach this line - aborts application with a core dump
+		return FALSE;	// Removes socket's callback from main cycle
+	}
+}
+
 
 // Initialize all sockets. Configures the following global variables:
 // port_MCast - multicast port

@@ -44,6 +44,11 @@ struct Query;
 // typedef enum { ... } QueryState;
 // typedef enum { ... } ConnectState;
 
+typedef struct socket_struct {
+	int s;
+	GIOChannel *s_chan;
+	guint s_chan_id;
+} socket_struct;
 
 // Query information
 typedef struct Query {
@@ -52,28 +57,25 @@ typedef struct Query {
 	gboolean is_ipv6;			// if TRUE, comes from IPv6, otherwise comes from IPv4.
 	struct in6_addr ipv6;
 	struct in_addr ipv4;
-	u_short port1;
-	u_short port2;
+	u_short port_cli;
+	u_short port_server;
 	int state;
+	//Timer_ID
+	guint query_timer;
 	//Message transmission
 	char buf[MSG_BUFFER_SIZE];
 	int buflen;
 	//Proxy Data... To be continued
-	GIOChannel *chanTCP;
-	guint chanTCP_id;
+	struct socket_struct sock;
+	struct socket_struct cli_sock;
+	struct socket_struct com_sock;
+
 	/*
 	 * 	...
 	 * 	Put here everything you need to store about a Query, including the information about
 	 * 	the Hit, the server socket, the accepted socket, the connection socket, buffers, etc.
 	 */
 } Query;
-
-typedef struct Socket {
-	int s;
-	GIOChannel *s_chan;
-	guint s_chan_id;
-};
-
 
 
 /**********************\
