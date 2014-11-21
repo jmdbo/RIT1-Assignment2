@@ -74,6 +74,20 @@ gboolean set_socket_callback_condition_in_mainloop(int sock, void *ptr, guint *c
 	}
 }
 
+void close_everything(Query *pt){
+	//remove_socket_from_mainloop(pt->sock_com.s, pt->sock_com.s_chan_id, pt->sock_com.s_chan);
+	//remove_socket_from_mainloop(pt->sock_cli.s, pt->sock_cli.s_chan_id, pt->sock_cli.s_chan);
+	//remove_socket_from_mainloop(pt->sock_serv.s, pt->sock_serv.s_chan_id, pt->sock_serv.s_chan);
+	//free_gio_channel(pt->sock_cli.s_chan);
+	//free_gio_channel(pt->sock_serv.s_chan);
+	//free_gio_channel(pt->sock_com.s_chan);
+	close(pt->sock_com.s);
+	close(pt->sock_cli.s);
+	close(pt->sock_serv.s);
+	remove_from_qlist(pt->name,pt->seq, pt->is_ipv6);
+
+}
+
 
 /* Example callback function that handles reading/writing events from a TCP socket
  * It returns TRUE to keep the callback active, and FALSE to disable the callback */
@@ -130,7 +144,7 @@ callback_TCP_socket (GIOChannel *source, GIOCondition condition, gpointer data)
 
 		return TRUE;  // If there is more data coming, otherwise return FALSE;
 	} else if ((condition & G_IO_NVAL) || (condition & G_IO_ERR)) {
-		printf("G_IO_NVAL or G_IO_ERR\n");
+		printf("G_IO_NVAL or G_IO_ERR ipv4\n");
 		sprintf(write_buf, "G_IO_NVAL or G_IO_ERR - socket error %d\n", condition);
 		Log(write_buf);
 		// The query is broke - remove it
@@ -151,7 +165,7 @@ gboolean callback_TCP_socketIPv6 (GIOChannel *source, GIOCondition condition, gp
 	char buf[MSG_BUFFER_SIZE];
 
 	int s= g_io_channel_unix_get_fd(source); // Get the socket file descriptor
-	int n;
+	int n,m;
 	long long file_size;
 
 
@@ -180,34 +194,39 @@ gboolean callback_TCP_socketIPv6 (GIOChannel *source, GIOCondition condition, gp
 				printf("Reading error in TCP IPv6\n");
 				return FALSE;
 			}
-			printf("Got file length from IPv6");
+			printf("Got file length %lld from IPv6", file_size);
 			n=write(pt->sock_serv.s, &file_size, sizeof(file_size));
 			pt->file_len = file_size;
 			pt->state_down = 2;
 		}
 		int towrite;
-		if(pt->state_down==2){
+		if(pt->state_down==2){/*
 			if(pt->file_len > sizeof(buf)){
 				pt->file_len -= sizeof(buf);
 				towrite=sizeof(buf);
-			}else{
-				pt->file_len=0;
+			}else if(pt->file_len!=0){
 				towrite=pt->file_len;
-			}
-			n= read(s, buf, towrite);
+				pt->file_len=0;
+			}else{
+				printf("End of connection!");
+				close_everything(pt);
+				return FALSE;
+			}*/
+			n= read(s, buf, sizeof(buf));
 			if(n==0){
 				printf("Connection TCP IPv6 broke!\n");
+				close_everything(pt);
 				return FALSE;
 			}else if(n<0){
 				printf("Reading error in TCP IPv6");
 				return FALSE;
 			}
-			n=write(pt->sock_serv.s, &file_size, sizeof(file_size));
-			if(n<=0){
+			m=write(pt->sock_serv.s, buf, n);
+			if(m<=0){
+				close_everything(pt);
 				return FALSE;
 			}
-			if(towrite==0)
-				return FALSE;
+
 		}
 
 
@@ -239,7 +258,7 @@ gboolean callback_TCP_socketIPv6 (GIOChannel *source, GIOCondition condition, gp
 
 		return TRUE;  // If there is more data coming, otherwise return FALSE;
 	} else if ((condition & G_IO_NVAL) || (condition & G_IO_ERR)) {
-		printf("G_IO_NVAL or G_IO_ERR\n");
+		printf("G_IO_NVAL or G_IO_ERR ipv6\n");
 		sprintf(write_buf, "G_IO_NVAL or G_IO_ERR - socket error %d\n", condition);
 		Log(write_buf);
 		// The query is broke - remove it
