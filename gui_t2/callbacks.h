@@ -74,6 +74,8 @@ typedef struct Query {
 	//Length File
 	long long file_len;
 
+	int state_down=0;
+
 	/*
 	 * 	...
 	 * 	Put here everything you need to store about a Query, including the information about

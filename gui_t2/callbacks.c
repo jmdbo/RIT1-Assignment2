@@ -151,7 +151,9 @@ gboolean callback_TCP_socketIPv6 (GIOChannel *source, GIOCondition condition, gp
 	char buf[MSG_BUFFER_SIZE];
 
 	int s= g_io_channel_unix_get_fd(source); // Get the socket file descriptor
-	int n, len;
+	int n;
+	long long file_size;
+
 
 
 	Query *pt= (Query *)data;	// Recover the pointer set when the callback was defined
@@ -169,27 +171,41 @@ gboolean callback_TCP_socketIPv6 (GIOChannel *source, GIOCondition condition, gp
 		// Do not forget to test the value returned (n):
 		//	- n==0  -  EOF (connection broke)
 		//	- n<0   -  reading error in socket (test (errno==EWOULDBLOCK) if it is in non-blocking mode
-
-		n= read(s, &len, sizeof(len));
-		if(n==0){
-			printf("Connection srvTCP broke!");
-			return FALSE;
-		}else if(n<0){
-			printf("Reading error in srvTCP");
-			return FALSE;
+		if(pt->state_down==1){
+			n= read(s, &file_size, sizeof(file_size));
+			if(n==0){
+				printf("Connection srvTCP broke!");
+				return FALSE;
+			}else if(n<0){
+				printf("Reading error in srvTCP");
+				return FALSE;
+			}
+			printf("Got file with length %d from IPv6", file_size);
+			n=write(pt->sock_serv.s, &file_size, sizeof(file_size));
+			pt->file_len = file_size;
+			pt->state_down = 2;
 		}
-		printf("Got message with length %d from IPv6", len);
-
-		n= read(s, buf, len);
-		if(n==0){
-			printf("Connection srvTCP broke!");
-			return FALSE;
-		}else if(n<0){
-			printf("Reading error in srvTCP");
-			return FALSE;
+		int towrite;
+		if(pt->state_down==2){
+			if(pt->file_len > sizeof(buf)){
+				pt->file_len -= sizeof(buf);
+				towrite=sizeof(buf);
+			}
+			n= read(s, buf, towrite);
+			if(n==0){
+				printf("Connection srvTCP broke!");
+				return FALSE;
+			}else if(n<0){
+				printf("Reading error in srvTCP");
+				return FALSE;
+			}
+			n=write(pt->sock_serv.s, &file_size, sizeof(file_size));
+			if(n<=0){
+				return FALSE;
+			}
 		}
 
-		n=write(pt->sock_serv.s, buf, len+sizeof(len));
+
 		//
 		// During a write operation with
 		//		n= write(s, buf, m);
@@ -278,6 +294,7 @@ gboolean callback_TCP_socketIPv4 (GIOChannel *source, GIOCondition condition, gp
 				return FALSE;
 			}
 			n=write(pt->sock_cli.s, buf, pt->fname_len);
+			pt->state_down = 1;
 			return FALSE;
 		}
 
