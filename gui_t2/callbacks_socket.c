@@ -642,13 +642,14 @@ int init_client_socket_tcp6(gboolean connect_S, struct in6_addr *ip,
 		Log("Failed opening IPv6 TCP socket\n");
 		return -1;
 	}
+	server.sin6_family = AF_INET6;
+	server.sin6_flowinfo = 0;
+	server.sin6_port = htons (port);
+	bcopy (ip, &server.sin6_addr, sizeof(struct in6_addr));
 
 	if (connect_S) {
 		// Connect to remote host
-		server.sin6_family = AF_INET6;
-		server.sin6_flowinfo = 0;
-		server.sin6_port = htons (port);
-		bcopy (ip, &server.sin6_addr, sizeof(struct in6_addr));
+
 		if (connect (sockTCP, (struct sockaddr *) &server, sizeof (struct sockaddr_in6)) < 0)
 		{
 		      Log("connecting stream socket");
@@ -657,7 +658,6 @@ int init_client_socket_tcp6(gboolean connect_S, struct in6_addr *ip,
 		//Log("init_client_socket_tcp6 connect option not implmented yet\n");
 		// ...
 		// Read the tcpcli example or the clitcpv6.c file in demos_s_gnome
-		return sockTCP;
 	}
 
 	// Regist the TCP socket in Gtk+ main loop
