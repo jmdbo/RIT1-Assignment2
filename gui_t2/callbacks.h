@@ -97,6 +97,7 @@ extern WindowElements *main_window;
  ******************************************************/
 Query* put_in_qlist(const char* fname, int seq, gboolean is_ipv6, struct in6_addr *ipv6, struct in_addr *ipv4, u_short port, char* buf, int buflen);
 void remove_from_qlist(const char* fname, int seq, gboolean is_ipv6);
+gboolean is_in_qlist(const char* fname, int seq);
 
 /*******************************************************\
 |* Functions to control the state of the application   *|

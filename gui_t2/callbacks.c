@@ -77,7 +77,7 @@ gboolean set_socket_callback_condition_in_mainloop(int sock, void *ptr, guint *c
 void close_everything(Query *pt){
 	//remove_socket_from_mainloop(pt->sock_com.s, pt->sock_com.s_chan_id, pt->sock_com.s_chan);
 	//remove_socket_from_mainloop(pt->sock_cli.s, pt->sock_cli.s_chan_id, pt->sock_cli.s_chan);
-	//remove_socket_from_mainloop(pt->sock_serv.s, pt->sock_serv.s_chan_id, pt->sock_serv.s_chan);
+	remove_socket_from_mainloop(pt->sock_serv.s, pt->sock_serv.s_chan_id, pt->sock_serv.s_chan);
 	//free_gio_channel(pt->sock_cli.s_chan);
 	//free_gio_channel(pt->sock_serv.s_chan);
 	//free_gio_channel(pt->sock_com.s_chan);
@@ -329,7 +329,7 @@ gboolean callback_TCP_socketIPv4 (GIOChannel *source, GIOCondition condition, gp
 
 		return TRUE;  // If there is more data coming, otherwise return FALSE;
 	} else if ((condition & G_IO_NVAL) || (condition & G_IO_ERR)) {
-		printf("G_IO_NVAL or G_IO_ERR\n");
+		printf("G_IO_NVAL or G_IO_ERR IPv4\n");
 		sprintf(write_buf, "G_IO_NVAL or G_IO_ERR - socket error %d\n", condition);
 		Log(write_buf);
 		// The query is broke - remove it
@@ -406,10 +406,19 @@ static const char *get_trunc_filename(const char *FileName) {
 // Callback that handles query timeouts
 gboolean callback_query_timeout(gpointer data) {
 	Query *q = (Query *) data;
+	const char* str_ip;
+	unsigned int GUIport;
+	const char* hits;
+
 
 	g_print("Callback query_timeout\n");
 
 	if(q->state==1){
+		printf("Sending query...\n");
+		if(GUI_get_Query_details(q->name, q->seq, !q->is_ipv6, &str_ip, &GUIport, &hits)){
+			printf("Query Ignored\n");
+			return FALSE;
+		}
 		printf("Sending query...\n");
 		send_multicast(q->buf, q->buflen, !q->is_ipv6);
 		q->state = 2;
@@ -474,6 +483,21 @@ Query* get_from_qlist(const char* fname, int seq, gboolean is_ipv6){
 	} else return NULL;
 }
 
+gboolean is_in_qlist(const char* fname, int seq){
+	Query* aux;
+
+		if(qList != NULL){
+			qList = g_list_first(qList);
+			while(qList!= NULL){
+				aux = (Query*) qList->data;
+				if(!strcmp(fname, aux->name) && seq == aux->seq)
+					return TRUE;
+				qList = g_list_next(qList);
+			}
+			return FALSE;
+		} else return FALSE;
+}
+
 void remove_from_qlist(const char* fname, int seq, gboolean is_ipv6){
 	Query* aux;
 	aux = get_from_qlist(fname, seq, is_ipv6);
@@ -525,11 +549,8 @@ void handle_Query(char *buf, int buflen, gboolean is_ipv6,
 	// Check if it is a new query (equal name+seq+is_ipv6) - ignore if it is an old one
 	// Check if the query has appeared in the !is_ipv6 domain - if it has, ignore it because someone else send it before.
 	is_located = GUI_get_Query_details(fname, seq, is_ipv6,&str_ip, &GUIport, &hits);
-	if(!is_located){
-		if(GUI_get_Query_details(fname, seq, !is_ipv6, &str_ip, &GUIport, &hits)){
-			return;
-		}
-	} else return;
+	if(is_located)
+		return;
 	// Add the query to the graphical Query list
 	GUI_add_Query(fname, seq, is_ipv6, strdup(tmp_ip), port);
 	// If it is new, create a new Query struct and store it in your list
