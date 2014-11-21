@@ -178,13 +178,6 @@ gboolean callback_TCP_socketIPv6 (GIOChannel *source, GIOCondition condition, gp
 		// Data available for reading at socket s
 		printf("G_IO_IN IPv6\n");
 
-		// Use the following expression to read bulk data from the socket:
-		//      n= read(s, buf, sizeof(buf));
-		// For a header field (int seq), you should use:
-		// 		n= read(s, &seq, sizeof(seq));
-		// Do not forget to test the value returned (n):
-		//	- n==0  -  EOF (connection broke)
-		//	- n<0   -  reading error in socket (test (errno==EWOULDBLOCK) if it is in non-blocking mode
 		if(pt->state_down==1){
 			n= read(s, &file_size, sizeof(file_size));
 			if(n==0){
@@ -196,10 +189,10 @@ gboolean callback_TCP_socketIPv6 (GIOChannel *source, GIOCondition condition, gp
 			}
 			printf("Got file length %lld from IPv6", file_size);
 			n=write(pt->sock_serv.s, &file_size, sizeof(file_size));
-			pt->file_len = file_size;
+			pt->file_len = file_size*8;
 			pt->state_down = 2;
 		}
-		int towrite;
+		//int towrite;
 		if(pt->state_down==2){/*
 			if(pt->file_len > sizeof(buf)){
 				pt->file_len -= sizeof(buf);
@@ -214,7 +207,7 @@ gboolean callback_TCP_socketIPv6 (GIOChannel *source, GIOCondition condition, gp
 			}*/
 			n= read(s, buf, sizeof(buf));
 			if(n==0){
-				printf("Connection TCP IPv6 broke!\n");
+				printf("Connection TCP IPv6 ended!\n");
 				close_everything(pt);
 				return FALSE;
 			}else if(n<0){
@@ -228,9 +221,6 @@ gboolean callback_TCP_socketIPv6 (GIOChannel *source, GIOCondition condition, gp
 			}
 
 		}
-
-
-
 		//
 		// During a write operation with
 		//		n= write(s, buf, m);
