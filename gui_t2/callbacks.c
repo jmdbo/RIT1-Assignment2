@@ -171,7 +171,7 @@ gboolean callback_TCP_socketIPv6 (GIOChannel *source, GIOCondition condition, gp
 	char buf[MSG_BUFFER_SIZE];
 
 	int s= g_io_channel_unix_get_fd(source); // Get the socket file descriptor
-	int n,m;
+	int n,m,read_n;
 	long long file_size;
 	float percentage;
 
@@ -191,8 +191,12 @@ gboolean callback_TCP_socketIPv6 (GIOChannel *source, GIOCondition condition, gp
 				printf("Connection TCP IPv6 broke!\n");
 				return FALSE;
 			}else if(n<0){
-				printf("Reading error in TCP IPv6\n");
-				return FALSE;
+				if(errno!=EWOULDBLOCK){
+					printf("Reading error in TCP IPv6\n");
+					return FALSE;
+				} else{
+					return TRUE;
+				}
 			}
 			printf("Got file length %lld from IPv6", file_size);
 			n=write(pt->sock_serv.s, &file_size, sizeof(file_size));
@@ -213,54 +217,50 @@ gboolean callback_TCP_socketIPv6 (GIOChannel *source, GIOCondition condition, gp
 				close_everything(pt);
 				return FALSE;
 			}*/
-			n= read(s, buf, sizeof(buf));
-			if(n==0){
+			read_n= read(s, buf, sizeof(buf));
+			if(read_n==0){
 				printf("Connection TCP IPv6 ended!\n");
 				close_everything(pt);
 				return FALSE;
-			}else if(n<0){
+			}else if(read_n<0){
 				printf("Reading error in TCP IPv6");
 				return FALSE;
 			}
-			pt->file_transf +=n;
+			pt->file_transf +=read_n;
 			percentage = (int)(((float)pt->file_transf/pt->file_len)*100);
 			if(percentage>pt->percentage){
 				GUI_update_transf_Proxy(get_portnumber(pt->sock_com.s), percentage);
 				pt->percentage= percentage;
 			}
-
-			m=write(pt->sock_serv.s, buf, n);
+			m=write(pt->sock_serv.s, buf, read_n);
 			if(m<=0){
+				if(m==-1 && errno==EWOULDBLOCK){
+					memcpy(pt->buf,buf,sizeof(buf));
+					set_socket_callback_condition_in_mainloop(s, data, &pt->sock_cli.s_chan_id, source, G_IO_OUT, callback_TCP_socketIPv6);
+				}
 				close_everything(pt);
 				return FALSE;
 			}
-
 		}
-		//
-		// During a write operation with
-		//		n= write(s, buf, m);
-		//  it may return n != m when it is in the non-blocking mode!
-		//  If n==-1 and (errno==EWOULDBLOCK), or if (n>0) means that the TCP's output buffer if full.
-		//      You should enable the G_IO_OUT event in the main loop using the function
-		//	set_socket_callback_condition_in_mainloop, and wait before continuing sending data.
-		//  Store the pending data not sent in a buffer in the struct Query, so you can resend it again latter
-		//  when the event G_IO_OUT is received
-		//
-		// A socket sock can be set to non blocking mode using:
-		//		fcntl(sock,F_SETFL,O_NONBLOCK);
-
 		return TRUE;	// If there is more data coming, otherwise return FALSE;
 
 	} else if (condition & G_IO_OUT) {
 		// Space available for reading at socket s
-		printf("G_IO_OUT\n");
-
+		printf("G_IO_OUT IPv6\n");
+		m=write(pt->sock_serv.s, buf, strlen(buf)+1);
+		if(m<=0){
+			if(m==-1 && errno==EWOULDBLOCK){
+				return TRUE;
+			}else return FALSE;
+		}
+		if(m==strlen(buf)+1){
+			set_socket_callback_condition_in_mainloop(s, data, &pt->sock_cli.s_chan_id, source, G_IO_IN, callback_TCP_socketIPv6);
+		}
 		// This event should only be used when a write/send operation previously returned -1  with (errno==EWOULDBLOCK),
 		//     or a number of bytes below the number of bytes written. This means that the TCP's output buffer is full!
 		//
 		//	When the remaining bytes are written, do not forget to remove the G_IO_OUT event from the mainloop,
 		//		using the function set_socket_callback_condition_in_mainloop
-
 		return TRUE;  // If there is more data coming, otherwise return FALSE;
 	} else if ((condition & G_IO_NVAL) || (condition & G_IO_ERR)) {
 		printf("G_IO_NVAL or G_IO_ERR ipv6\n");
@@ -325,11 +325,10 @@ gboolean callback_TCP_socketIPv4 (GIOChannel *source, GIOCondition condition, gp
 			}
 			n=write(pt->sock_cli.s, buf, pt->fname_len);
 			pt->state_down = 1;
+			// A socket sock can be set to non blocking mode using:
+			fcntl(pt->sock_cli.s,F_SETFL,O_NONBLOCK);
 			return TRUE;
 		}
-		// A socket sock can be set to non blocking mode using:
-		//		fcntl(sock,F_SETFL,O_NONBLOCK);
-
 		return TRUE;	// If there is more data coming, otherwise return FALSE;
 
 	} else if (condition & G_IO_OUT) {
