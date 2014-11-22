@@ -73,6 +73,8 @@ typedef struct Query {
 	int fname_len;
 	//Length File
 	long long file_len;
+	long long file_transf;
+	float percentage;
 
 	int state_down;
 

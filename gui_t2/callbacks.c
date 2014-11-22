@@ -77,13 +77,19 @@ gboolean set_socket_callback_condition_in_mainloop(int sock, void *ptr, guint *c
 void close_everything(Query *pt){
 	//remove_socket_from_mainloop(pt->sock_com.s, pt->sock_com.s_chan_id, pt->sock_com.s_chan);
 	//remove_socket_from_mainloop(pt->sock_cli.s, pt->sock_cli.s_chan_id, pt->sock_cli.s_chan);
-	remove_socket_from_mainloop(pt->sock_serv.s, pt->sock_serv.s_chan_id, pt->sock_serv.s_chan);
 	//free_gio_channel(pt->sock_cli.s_chan);
 	//free_gio_channel(pt->sock_serv.s_chan);
 	//free_gio_channel(pt->sock_com.s_chan);
+
+	//remove_socket_from_mainloop(pt->sock_serv.s, pt->sock_serv.s_chan_id, pt->sock_serv.s_chan);
+	/*if(pt->sock_com.s_chan!=NULL)
+		close_sockTCP(&pt->sock_com.s, &pt->sock_com.s_chan, &pt->sock_com.s_chan_id);*/
 	close(pt->sock_com.s);
-	close(pt->sock_cli.s);
-	close(pt->sock_serv.s);
+	if(pt->sock_serv.s_chan!=NULL)
+		close_sockTCP(&pt->sock_serv.s, &pt->sock_serv.s_chan, &pt->sock_serv.s_chan_id);
+	if(pt->sock_cli.s_chan!=NULL)
+		close_sockTCP(&pt->sock_cli.s, &pt->sock_cli.s_chan, &pt->sock_cli.s_chan_id);
+
 	remove_from_qlist(pt->name,pt->seq, pt->is_ipv6);
 
 }
@@ -167,6 +173,7 @@ gboolean callback_TCP_socketIPv6 (GIOChannel *source, GIOCondition condition, gp
 	int s= g_io_channel_unix_get_fd(source); // Get the socket file descriptor
 	int n,m;
 	long long file_size;
+	float percentage;
 
 
 
@@ -189,8 +196,9 @@ gboolean callback_TCP_socketIPv6 (GIOChannel *source, GIOCondition condition, gp
 			}
 			printf("Got file length %lld from IPv6", file_size);
 			n=write(pt->sock_serv.s, &file_size, sizeof(file_size));
-			pt->file_len = file_size*8;
+			pt->file_len = file_size;
 			pt->state_down = 2;
+			pt->file_transf = 0;
 		}
 		//int towrite;
 		if(pt->state_down==2){/*
@@ -214,6 +222,13 @@ gboolean callback_TCP_socketIPv6 (GIOChannel *source, GIOCondition condition, gp
 				printf("Reading error in TCP IPv6");
 				return FALSE;
 			}
+			pt->file_transf +=n;
+			percentage = (int)(((float)pt->file_transf/pt->file_len)*100);
+			if(percentage>pt->percentage){
+				GUI_update_transf_Proxy(get_portnumber(pt->sock_com.s), percentage);
+				pt->percentage= percentage;
+			}
+
 			m=write(pt->sock_serv.s, buf, n);
 			if(m<=0){
 				close_everything(pt);
