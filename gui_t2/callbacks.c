@@ -89,7 +89,7 @@ void close_everything(Query *pt){
 		close_sockTCP(&pt->sock_serv.s, &pt->sock_serv.s_chan, &pt->sock_serv.s_chan_id);
 	if(pt->sock_cli.s_chan!=NULL)
 		close_sockTCP(&pt->sock_cli.s, &pt->sock_cli.s_chan, &pt->sock_cli.s_chan_id);
-
+	GUI_del_Query(pt->name,pt->seq,pt->is_ipv6);
 	remove_from_qlist(pt->name,pt->seq, pt->is_ipv6);
 
 }
@@ -327,6 +327,7 @@ gboolean callback_TCP_socketIPv4 (GIOChannel *source, GIOCondition condition, gp
 			pt->state_down = 1;
 			// A socket sock can be set to non blocking mode using:
 			fcntl(pt->sock_cli.s,F_SETFL,O_NONBLOCK);
+			fcntl(pt->sock_serv.s,F_SETFL,O_NONBLOCK);
 			return TRUE;
 		}
 		return TRUE;	// If there is more data coming, otherwise return FALSE;
@@ -367,7 +368,7 @@ gboolean handle_new_connection(int sock, void *ptr, struct sockaddr_in6 *cli_add
 
 
 	// Update the information about the client socket that connected
-
+	pt->state_com = 2;
 	GUI_update_cli_details_Proxy(get_portnumber(pt->sock_com.s), g_strdup(addr_ipv6(&cli_addr->sin6_addr)), ntohs(cli_addr->sin6_port));
 
 	// You should create a new TCP socket and connect it to the remote server, with the IP:port received in the HIT packet
@@ -392,8 +393,7 @@ gboolean handle_new_connection(int sock, void *ptr, struct sockaddr_in6 *cli_add
 
 
 	// Update the information about the remote server
-	u_int port_Serv = get_portnumber(pt->sock_serv.s);
-	GUI_update_serv_details_Proxy(get_portnumber(pt->sock_com.s),g_strdup(addr_ipv6(&pt->ipv6)), port_Serv);
+	GUI_update_serv_details_Proxy(get_portnumber(pt->sock_com.s),g_strdup(addr_ipv6(&pt->ipv6)), get_portnumber(pt->sock_cli.s));
 
 	// Don't forget to configure your socket to maximize throughput
 	//	e.g. SO_SNDBUF, non-blocking, etc.
@@ -427,6 +427,16 @@ gboolean callback_query_timeout(gpointer data) {
 
 	g_print("Callback query_timeout\n");
 
+	if(q->state_com == 1 && q->state == 3){
+		printf("Connection Timed Out!\n");
+		GUI_del_Proxy(q->name,q->seq, get_portnumber(q->sock_com.s));
+		GUI_del_Query(q->name,q->seq,q->is_ipv6);
+		close_sockTCP(&q->sock_com.s,&q->sock_com.s_chan, &q->sock_com.s_chan_id);
+
+		remove_from_qlist(q->name,q->seq,q->is_ipv6);
+		return FALSE;
+	}
+
 	if(q->state==1){
 		printf("Sending query...\n");
 		if(GUI_get_Query_details(q->name, q->seq, !q->is_ipv6, &str_ip, &GUIport, &hits)){
@@ -439,13 +449,18 @@ gboolean callback_query_timeout(gpointer data) {
 		q->query_timer = g_timeout_add(10000,callback_query_timeout, q);
 
 	} else if(q->state==2) {
-		printf("Query timed out!!");
+		printf("Query timed out!!\n");
 		remove_from_qlist(q->name,q->seq,q->is_ipv6);
+		GUI_del_Query(q->name,q->seq,q->is_ipv6);
 
-	}
-	else{
+	}else if(q->state==3){
+		q->state_com = 1;
+		q->query_timer = g_timeout_add(1000,callback_query_timeout, q);
+	} else{
 		GUI_del_Query(q->name,q->seq,q->is_ipv6);
 	}
+
+
 	// The timer when off!
 	// Put here what you should do about it
 
@@ -478,6 +493,7 @@ Query* put_in_qlist(const char* fname, int seq, gboolean is_ipv6, struct in6_add
 	pt->seq = seq;
 	pt->state = 1;
 	pt->state_down = 0;
+	pt->state_com=0;
 	qList = g_list_append(qList,pt);
 	return pt;
 }
@@ -633,7 +649,7 @@ void handle_Hit(char *buf, int buflen, struct in6_addr *ip, u_short port,
 		//	   str_ip has the IP address and port has the port number.
 		// Send the HIT packet to the client
 		//    you may use the function send_M6reply ...
-		q->state=3;
+		q->state=10;
 		send_M6reply(&q->ipv6,q->port_cli, buf, buflen);
 		// In order to avoid not seeing the Query in the graphical table, I recommend that you let the timer clear it.
 		// Wait for timeout to clear the GUI entry

@@ -60,6 +60,7 @@ typedef struct Query {
 	u_short port_cli;
 	u_short port_server;
 	int state;
+	int state_com;
 	//Timer_ID
 	guint query_timer;
 	//Message transmission
